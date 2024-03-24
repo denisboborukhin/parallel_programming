@@ -23,4 +23,4 @@ run_ring: ring
 	mpirun -np 5 ./ring
 
 clean:
-	rm -rf hello_world sum
+	rm -rf hello_world sum ring
