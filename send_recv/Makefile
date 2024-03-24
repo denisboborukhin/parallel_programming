@@ -1,4 +1,4 @@
-CC = mpic++
+CC = mpic++ -std=c++11
 
 SRC = ./src/
 
