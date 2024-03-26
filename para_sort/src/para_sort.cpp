@@ -1,17 +1,21 @@
+#include <chrono>
 #include <cstddef>
-// #include <mpi.h>
+#include <mpi.h>
+
+#include <iomanip>   
+#include <thread>
 
 #include <iostream>
 #include <vector>
 #include <random>
 
-std::vector<double> generate_arr(const size_t size)
+double* generate_arr(const size_t size)
 {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> random(1.0, 100.0);
 
-    std::vector<double> res(size);
+    double* res = new double[size];
     for (int i = 0; i != size; ++i) {
         res[i] = random(rd);
     }
@@ -19,49 +23,80 @@ std::vector<double> generate_arr(const size_t size)
     return res;
 }
 
-void merge(std::vector<double>& arr, const size_t left, const size_t mid, const size_t right)
+double* generate_reverse_arr(const size_t size)
 {
-    std::vector<double> temp(right - left + 1);
+    double* res = new double[size];
+    for (int i = 0; i != size; ++i) {
+        res[i] = size - i;
+    }
     
-    auto k = 0;
-    auto i = left, j = mid + 1;
-    while (i <= mid && j <= right) {
-        auto first = arr[i];
-        auto second = arr[j];
-        if (first > second) {
-            temp[k] = second;
-            j++;
+    return res;
+}
+
+double* generate_lin_arr(const size_t size)
+{
+    double* res = new double[size];
+    for (int i = 0; i != size; ++i) {
+        res[i] = i;
+    }
+    
+    return res;
+}
+
+void merge(double* arr, const int low, const int mid, const int high)
+{
+    int i = low, j = mid + 1, k = 0;
+    double *temp = new double[high - low + 1];
+    
+    while (i <= mid && j <= high) {
+        if (arr[i] <= arr[j]) {
+            temp[k++] = arr[i++];
         } else {
-            temp[k] = first;
-            i++;
+            temp[k++] = arr[j++];
         }
-        k++;
-    }
-    while (i <= mid) {
-        temp[k] = arr[i];
-        k++, i++;
-    }
-    while (j <= right) {
-        temp[k] = arr[j];
-        k++, j++;
     }
     
-    for (auto count = left; count != right + 1; ++count) {
-        arr[count] = temp[count - left];
+    while (i <= mid) {
+        temp[k++] = arr[i++];
+    }
+    
+    while (j <= high) {
+        temp[k++] = arr[j++];
+    }
+    
+    for (i = low, k = 0; i <= high; i++, k++) {
+        arr[i] = temp[k];
+    }
+    
+    delete[] temp;
+}
+
+void mergeSort(double* arr, int low, int high)
+{
+    if (low < high) {     
+        int mid = low + (high - low) / 2;
+        mergeSort(arr, low, mid); 
+        mergeSort(arr, mid + 1, high);
+        merge(arr, low, mid, high); 
     }
 }
 
-void mergeSort(std::vector<double>& arr, size_t left, size_t right)
+std::chrono::high_resolution_clock::duration sort(double* arr, const size_t size, const std::string& message)
 {
-    if (left >= right) {
-        return;
+    auto begin = std::chrono::high_resolution_clock::now();
+    mergeSort(arr, 0, size - 1);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = end - begin;
+    std::cout << message << " time = " << std::setw(10) << duration.count() << " mcs\n";
+    return duration;
+}
+
+void printArr(double* arr, const size_t size)
+{
+    for (auto i = 0; i != size; ++i) {
+        std::cout << arr[i] << " ";
     }
-    
-    size_t mid = left + (right - left) / 2;
-    mergeSort(arr, left, mid);
-    mergeSort(arr, mid + 1, right);
-    
-    merge(arr, left, mid, right);
+    std::cout << "\n";
 }
 
 int main(int argc, char* argv[])
@@ -75,12 +110,47 @@ int main(int argc, char* argv[])
     int commsize = 0;
     int my_rank = 0;
 
-    auto arr = generate_arr(n);
-    mergeSort(arr, 0, n - 1);
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &commsize);
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-    // MPI_Init(&argc, &argv);
-    // MPI_Comm_size(MPI_COMM_WORLD, &commsize);
-    // MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-    //
-    // MPI_Finalize();
+    auto rand_arr = generate_arr(n);
+    // auto lin_arr = generate_lin_arr(n);
+    // auto reverse_arr = generate_reverse_arr(n);
+    
+    auto original_array = rand_arr;
+    if (my_rank == 0) {
+        std::cout << "orig: ";
+        printArr(original_array, n);
+    }
+
+	int size = n / commsize;
+	
+    double *sub_array= new double[size];
+	MPI_Scatter(original_array, size, MPI_DOUBLE, sub_array, size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	
+    printArr(sub_array, size);
+	mergeSort(sub_array, 0, size - 1);
+    printArr(sub_array, size);
+	
+    double *res = nullptr;
+	if (my_rank == 0) {
+        double *res = new double[n];
+    }
+	
+	MPI_Gather(sub_array, size, MPI_DOUBLE, res, size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+	
+	if (my_rank == 0) {
+        std::cout << "result: \n";
+		for (auto c = 0; c < n; c++) {
+            std::cout << res[c] << " ";
+        }
+        std::cout << "\n";
+        delete[] res;
+    }
+
+    delete[] original_array;
+    delete[] sub_array;
+
+    MPI_Finalize();
 }
