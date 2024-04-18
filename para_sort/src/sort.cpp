@@ -1,6 +1,5 @@
 #include <chrono>
 #include <cstddef>
-#include <mpi.h>
 
 #include <iomanip>   
 #include <iostream>
@@ -108,37 +107,11 @@ int main(int argc, char* argv[])
     
     int n = atoi(argv[1]);
 
-    int commsize = 0;
-    int my_rank = 0;
-
-    MPI_Init(&argc, &argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &commsize);
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
-
-    double* array = nullptr;
-    if (my_rank == 0) {
-        // array = generate_arr(n);
-        // array = generate_lin_arr(n);
-        array = generate_reverse_arr(n);
-    }
     auto begin = std::chrono::high_resolution_clock::now();
 
-	int size = n / commsize;
-	
-    double *sub_array= new double[size];
-	MPI_Scatter(array, size, MPI_DOUBLE, sub_array, size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-	mergeSort(sub_array, 0, size - 1);
-	
-	MPI_Gather(sub_array, size, MPI_DOUBLE, array, size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-	if (my_rank == 0) {
-        mergeSort(array, 0, n - 1);
+    double* array = generate_arr(n);
+    // array = generate_lin_arr(n);
+    // array = generate_reverse_arr(n);
 
-        auto end = std::chrono::high_resolution_clock::now();
-        std::cout << "parallel time = " << (end - begin).count() << " mcs\n";
-        delete[] array;
-    }
-	
-    delete[] sub_array;
-
-    MPI_Finalize();
+    sort(array, n, "non parallel");
 }
