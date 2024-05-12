@@ -10,7 +10,7 @@ para_sort: $(SRC)para_sort.cpp
 sort: $(SRC)sort.cpp
 	g++ -o sort $^
 	
-LENTH = 1000000
+LENTH = 10
 run: para_sort sort
 	./sort $(LENTH) 
 	mpirun -np 2 ./para_sort $(LENTH)
