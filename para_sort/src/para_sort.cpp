@@ -118,8 +118,8 @@ int main(int argc, char* argv[])
     double* array = nullptr;
     if (my_rank == 0) {
         // array = generate_arr(n);
-        // array = generate_lin_arr(n);
-        array = generate_reverse_arr(n);
+        array = generate_lin_arr(n);
+        // array = generate_reverse_arr(n);
     }
     auto begin = std::chrono::high_resolution_clock::now();
 
@@ -135,6 +135,8 @@ int main(int argc, char* argv[])
 
         auto end = std::chrono::high_resolution_clock::now();
         std::cout << "parallel time = " << (end - begin).count() << " mcs\n";
+
+        printArr(array, n);
         delete[] array;
     }
 	

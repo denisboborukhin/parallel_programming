@@ -109,8 +109,8 @@ int main(int argc, char* argv[])
 
     auto begin = std::chrono::high_resolution_clock::now();
 
-    double* array = generate_arr(n);
-    // array = generate_lin_arr(n);
+    // double* array = generate_arr(n);
+    double* array = generate_lin_arr(n);
     // array = generate_reverse_arr(n);
 
     sort(array, n, "non parallel");
