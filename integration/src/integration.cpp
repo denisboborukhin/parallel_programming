@@ -4,39 +4,49 @@
 #include <fstream>
 #include <chrono>
 
-double f(double x) {
-    return(std::cos(1 / x * x));
+double func(const double x) {
+    return cos(1 / (x * x));
 }
 
 const double A = 0.001;
 const double B = 5;
 
-void kahan_sum(double &a, double b, double &c) {
-    double y = b - c; 
-    b = a + y; 
-    c = (b - a) - y;
-    a = b;
+double simpson_integration(double a, double b, double eps) {
+    int n = 2; 
+    double h = (b - a) / n;
+    double result = (func(a) + 4 * func(a + h) + func(b)) * h / 3.0;
+    double previous_result;
+    
+    do {
+        previous_result = result;
+        n *= 2;
+        h = (b - a) / n;
+        result = 0.0;
+        for (int i = 0; i <= n; i++) {
+            if (i == 0 || i == n) {
+                result += func(a + i * h);
+            } else if (i % 2 == 0) {
+                result += 2 * func(a + i * h);
+            } else {
+                result += 4 * func(a + i * h);
+            }
+        }
+        result *= h / 3.0;
+    } while (fabs(result - previous_result) > eps);
+
+    return result;
 }
 
 struct thread_data {
     int tid;
-    int N;
+    double eps;
     double a, b;
     double partial_integral;
 };
 
 void* thread_func(void* arg) {
     thread_data* data = reinterpret_cast<thread_data*>(arg);
-    double delta = (data->b - data->a) / data->N;
-    double f_cur = f(data->a);
-    double f_prev;
-    double c = 0; //compensation
-
-    for (double x = data->a + delta; x <= data->b; x += delta) {
-        f_prev = f_cur;
-        f_cur = f(x);
-        kahan_sum(data->partial_integral, delta * (f_cur + f_prev) / 2, c);
-    }
+    data->partial_integral= simpson_integration(data->a, data->b, data->eps);
 
     pthread_exit(NULL);
 }
@@ -49,10 +59,10 @@ double integrate_parallel(int num_threads, double eps) {
 
     for (i = 0; i < num_threads; ++i) {
         thread_storage[i].tid = i;
-        thread_storage[i].N = ceil(1 / (2 * A * eps * num_threads));
         thread_storage[i].a = A + (B - A) * i / num_threads;
         thread_storage[i].b = A + (B - A) * (i + 1) / num_threads;
         thread_storage[i].partial_integral = 0;
+        thread_storage[i].eps = eps / num_threads;
         pthread_create(&thr[i], NULL, thread_func, &thread_storage[i]);
     }
 
@@ -66,11 +76,11 @@ double integrate_parallel(int num_threads, double eps) {
 }
 
 int main(int argc, char **argv) {
-    double accuracy = argc < 2 ? 1e-6 : atoi(argv[1]);
+    double accuracy = argc < 2 ? 1e-4 : atoi(argv[1]);
     std::ofstream output;
     output.open("out.csv");
 
-    for (int num_threads = 1; num_threads != 13; ++num_threads)
+    for (int num_threads = 1; num_threads != 5; ++num_threads)
     {
         auto begin = std::chrono::high_resolution_clock::now();
         double integral = integrate_parallel(num_threads, accuracy);
