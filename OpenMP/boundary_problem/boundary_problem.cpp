@@ -1,27 +1,36 @@
-#include <iostream>
-#include <vector>
 #include <cmath>
 #include <fstream>
+#include <iostream>
 #include <omp.h>
+#include <vector>
 
 const double X_MIN = -10.0;
-const double X_MAX = 10.0; 
-const double TOL = 1e-6;   
-const int MAX_ITER = 100000;  
+const double X_MAX = 10.0;
+const double TOL = 1e-6;
+const int MAX_ITER = 100000;
+
+// #define HARD
 
 double f(double y, double a) {
+#ifdef HARD
     return a * (y * y * y - y);
+#else
+    return a * (y - y * y * y);
+#endif
 }
 
 double d_f(double y, double a) {
+#ifdef HARD
     return a * (3 * y * y - 1);
+#else
+    return a * (1 - 3 * y * y);
+#endif
 }
 
-void thomas_algorithm(const std::vector<double> &a, 
-                      const std::vector<double> &b, 
-                      const std::vector<double> &c, 
-                      const std::vector<double> &d, 
-                      std::vector<double> &y) {
+void thomas_algorithm(const std::vector<double> &a,
+                      const std::vector<double> &b,
+                      const std::vector<double> &c,
+                      const std::vector<double> &d, std::vector<double> &y) {
     int N = d.size();
     std::vector<double> c_star(N, 0.0);
     std::vector<double> d_star(N, 0.0);
@@ -40,8 +49,10 @@ void thomas_algorithm(const std::vector<double> &a,
     }
 }
 
-void solve_numerov_newton(int N, double a, double y0, double yN, const std::string &output_file) {
-    double h = (X_MAX - X_MIN) / N / std::sqrt(a);
+void solve_numerov_newton(int N, double a, double y0, double yN,
+                          const std::string &output_file) {
+    N *= sqrt(a) / 10;
+    double h = (X_MAX - X_MIN) / N;
     std::vector<double> x(N), y(N, 0.0), f_values(N, 0.0);
 
     for (int i = 0; i < N; ++i) {
@@ -51,21 +62,28 @@ void solve_numerov_newton(int N, double a, double y0, double yN, const std::stri
     y[0] = y0;
     y[N - 1] = yN;
 
-    for (int iter = 0; iter < MAX_ITER; ++iter) {
+    omp_set_dynamic(0);
+    // std::cout << omp_get_max_threads() << std::endl;
+    omp_set_num_threads(omp_get_max_threads());
+
+    for (int iter = 0; iter != MAX_ITER; ++iter) {
         std::vector<double> a_diag(N - 2, 1.0);
         std::vector<double> b_diag(N - 2, -2.0);
         std::vector<double> c_diag(N - 2, 1.0);
-        std::vector<double> rhs(N - 2, 0.0); 
+        std::vector<double> rhs(N - 2, 0.0);
 
-        #pragma omp parallel for
+#pragma omp parallel for
         for (int i = 1; i < N - 1; ++i) {
             double f_val = f(y[i], a);
             double f_derivative = d_f(y[i], a);
-            double correction = (y[i - 1] - 2 * y[i] + y[i + 1]) / (h * h) - f_val;
+            double correction =
+                (y[i - 1] - 2 * y[i] + y[i + 1]) / (h * h) - f_val;
 
-            if (i > 1) a_diag[i - 1] = 1.0;
+            if (i > 1)
+                a_diag[i - 1] = 1.0;
             b_diag[i - 1] = -2.0 - h * h * f_derivative;
-            if (i < N - 2) c_diag[i - 1] = 1.0;
+            if (i < N - 2)
+                c_diag[i - 1] = 1.0;
 
             rhs[i - 1] = -correction * h * h;
         }
@@ -73,15 +91,16 @@ void solve_numerov_newton(int N, double a, double y0, double yN, const std::stri
         std::vector<double> delta_y(N - 2, 0.0);
         thomas_algorithm(a_diag, b_diag, c_diag, rhs, delta_y);
 
-        #pragma omp parallel for
+#pragma omp parallel for
         for (int i = 1; i < N - 1; ++i) {
             y[i] += delta_y[i - 1];
         }
 
         double max_error = 0.0;
-        #pragma omp parallel for reduction(max : max_error)
+#pragma omp parallel for reduction(max : max_error)
         for (int i = 1; i < N - 1; ++i) {
-            double f_val = (y[i - 1] - 2 * y[i] + y[i + 1]) / (h * h) - f(y[i], a);
+            double f_val =
+                (y[i - 1] - 2 * y[i] + y[i + 1]) / (h * h) - f(y[i], a);
             max_error = std::max(max_error, std::fabs(f_val));
         }
 
@@ -105,7 +124,7 @@ void solve_numerov_newton(int N, double a, double y0, double yN, const std::stri
 
 int main(int argc, char **argv) {
     int N = 2000;
-    double a = 100000.0; 
+    double a = 100000.0;
     if (argc >= 3) {
         N = atoi(argv[1]);
         a = atof(argv[2]);
