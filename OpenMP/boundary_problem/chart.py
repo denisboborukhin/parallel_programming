@@ -12,7 +12,7 @@ input_file = 'results.txt'
 
 x, y = read_data(input_file)
 plt.figure(figsize=(10, 6))
-plt.plot(x, y, marker='o')
+plt.plot(x, y, marker=None)
 plt.xlabel('x')
 plt.ylabel('y')
 plt.title('y(x)')
