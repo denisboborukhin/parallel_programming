@@ -9,7 +9,7 @@ const double X_MAX = 10.0;
 const double TOL = 1e-6;
 const int MAX_ITER = 100000;
 
-// #define HARD
+#define HARD
 
 double f(double y, double a) {
 #ifdef HARD
@@ -50,7 +50,7 @@ void thomas_algorithm(const std::vector<double> &a,
 }
 
 void solve_numerov_newton(int N, double a, double y0, double yN,
-                          const std::string &output_file) {
+                          const std::string &output_file, const int numThreads) {
     N *= sqrt(a) / 10;
     double h = (X_MAX - X_MIN) / N;
     std::vector<double> x(N), y(N, 0.0), f_values(N, 0.0);
@@ -64,8 +64,9 @@ void solve_numerov_newton(int N, double a, double y0, double yN,
 
     omp_set_dynamic(0);
     // std::cout << omp_get_max_threads() << std::endl;
-    omp_set_num_threads(omp_get_max_threads());
+    omp_set_num_threads(numThreads);
 
+    auto start = omp_get_wtime();
     for (int iter = 0; iter != MAX_ITER; ++iter) {
         std::vector<double> a_diag(N - 2, 1.0);
         std::vector<double> b_diag(N - 2, -2.0);
@@ -108,6 +109,9 @@ void solve_numerov_newton(int N, double a, double y0, double yN,
             break;
         }
     }
+    auto end = omp_get_wtime();
+
+    std::cout << "Elapsed time(sec): " << end - start << std::endl;
 
     std::ofstream results(output_file);
     if (results.is_open()) {
@@ -125,15 +129,17 @@ void solve_numerov_newton(int N, double a, double y0, double yN,
 int main(int argc, char **argv) {
     int N = 2000;
     double a = 100000.0;
-    if (argc >= 3) {
+    double nThreads = 1;
+    if (argc >= 4) {
         N = atoi(argv[1]);
         a = atof(argv[2]);
+        nThreads = atof(argv[3]);
     }
 
     double y0 = sqrt(2.0);
     double yN = sqrt(2.0);
 
-    solve_numerov_newton(N, a, y0, yN, "results.txt");
+    solve_numerov_newton(N, a, y0, yN, "results.txt", nThreads);
 
     return 0;
 }
